@@ -25,6 +25,7 @@ export class HimetricaClient {
   private currentScreenViewId: string | null = null;
   private screenStartTime: number = 0;
   private screenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingScreen: { name: string; path: string; screenViewId: string } | null = null;
   private isFirstScreen = true;
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private appState: AppStateStatus = AppState.currentState;
@@ -76,32 +77,49 @@ export class HimetricaClient {
     }
 
     const screenViewId = generateId();
+    this.pendingScreen = { name, path: effectivePath, screenViewId };
 
     this.screenDebounceTimer = setTimeout(() => {
-      this.currentScreenName = name;
-      this.currentScreenPath = effectivePath;
-      this.currentScreenViewId = screenViewId;
-      this.screenStartTime = Date.now();
-      this.isFirstScreen = false;
-
-      if (!this.storage.isReady()) return;
-
-      const payload = {
-        visitorId: this.storage.getVisitorId(),
-        sessionId: this.storage.getSessionId(this.config.sessionTimeout),
-        screenViewId,
-        screenName: name,
-        path: effectivePath,
-        timestamp: new Date().toISOString(),
-      };
-
-      this.transport.sendOrQueue(
-        `/api/track/screen?apiKey=${this.config.apiKey}`,
-        payload
-      );
-
-      this.log(`Screen: ${name}`);
+      this.sendPendingScreen();
     }, delay);
+  }
+
+  private sendPendingScreen(): void {
+    if (!this.pendingScreen) return;
+    const { name, path, screenViewId } = this.pendingScreen;
+    this.pendingScreen = null;
+    this.screenDebounceTimer = null;
+
+    this.currentScreenName = name;
+    this.currentScreenPath = path;
+    this.currentScreenViewId = screenViewId;
+    this.screenStartTime = Date.now();
+    this.isFirstScreen = false;
+
+    if (!this.storage.isReady()) return;
+
+    const payload = {
+      visitorId: this.storage.getVisitorId(),
+      sessionId: this.storage.getSessionId(this.config.sessionTimeout),
+      screenViewId,
+      screenName: name,
+      path,
+      timestamp: new Date().toISOString(),
+    };
+
+    this.transport.sendOrQueue(
+      `/api/track/screen?apiKey=${this.config.apiKey}`,
+      payload
+    );
+
+    this.log(`Screen: ${name}`);
+  }
+
+  private flushPendingScreen(): void {
+    if (this.screenDebounceTimer && this.pendingScreen) {
+      clearTimeout(this.screenDebounceTimer);
+      this.sendPendingScreen();
+    }
   }
 
   track(eventName: string, properties?: Record<string, unknown>): void {
@@ -112,6 +130,10 @@ export class HimetricaClient {
       this.log(`Invalid event name: ${eventName}`);
       return;
     }
+
+    // Flush any pending screen view so the server creates the session
+    // before the custom event arrives.
+    this.flushPendingScreen();
 
     const payload = {
       visitorId: this.storage.getVisitorId(),
@@ -186,6 +208,7 @@ export class HimetricaClient {
   }
 
   async flush(): Promise<void> {
+    this.flushPendingScreen();
     this.sendScreenDuration();
     await this.transport.flush();
   }
@@ -194,12 +217,8 @@ export class HimetricaClient {
     if (this.destroyed) return;
     this.destroyed = true;
 
+    this.flushPendingScreen();
     this.sendScreenDuration();
-
-    if (this.screenDebounceTimer) {
-      clearTimeout(this.screenDebounceTimer);
-      this.screenDebounceTimer = null;
-    }
 
     this.appStateSubscription?.remove();
     this.appStateSubscription = null;
