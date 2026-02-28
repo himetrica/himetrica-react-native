@@ -27,6 +27,8 @@ export class HimetricaClient {
   private screenDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingScreen: { name: string; path: string; screenViewId: string } | null = null;
   private isFirstScreen = true;
+  private firstScreenViewSent = false;
+  private pendingCustomEvents: Array<() => void> = [];
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private appState: AppStateStatus = AppState.currentState;
 
@@ -84,6 +86,15 @@ export class HimetricaClient {
     }, delay);
   }
 
+  private drainPendingEvents(): void {
+    if (!this.firstScreenViewSent) {
+      this.firstScreenViewSent = true;
+      const queued = this.pendingCustomEvents;
+      this.pendingCustomEvents = [];
+      for (const fn of queued) fn();
+    }
+  }
+
   private sendPendingScreen(): void {
     if (!this.pendingScreen) return;
     const { name, path, screenViewId } = this.pendingScreen;
@@ -112,24 +123,34 @@ export class HimetricaClient {
       payload
     );
 
+    this.drainPendingEvents();
     this.log(`Screen: ${name}`);
   }
 
   private flushPendingScreen(): void {
     if (this.screenDebounceTimer && this.pendingScreen) {
       clearTimeout(this.screenDebounceTimer);
-      this.sendPendingScreen();
+      this.sendPendingScreen(); // sendPendingScreen calls drainPendingEvents internally
     }
   }
 
   track(eventName: string, properties?: Record<string, unknown>): void {
     if (this.destroyed) return;
-    if (!this.storage.isReady()) return;
 
     if (!EVENT_NAME_REGEX.test(eventName) || eventName.length > MAX_EVENT_NAME_LENGTH) {
       this.log(`Invalid event name: ${eventName}`);
       return;
     }
+
+    // Queue custom events until the first screen view has been sent.
+    // This prevents the server from creating a bare session (pageCount=0)
+    // when track() fires before the delayed first screen view.
+    if (!this.firstScreenViewSent) {
+      this.pendingCustomEvents.push(() => this.track(eventName, properties));
+      return;
+    }
+
+    if (!this.storage.isReady()) return;
 
     // Flush any pending screen view so the server creates the session
     // before the custom event arrives.
@@ -215,10 +236,14 @@ export class HimetricaClient {
 
   async destroy(): Promise<void> {
     if (this.destroyed) return;
-    this.destroyed = true;
 
+    // flushPendingScreen sends the pending screen (if any) and drains queued
+    // custom events internally.  We set destroyed AFTER so drained track()
+    // closures aren't short-circuited by the destroyed check.
     this.flushPendingScreen();
     this.sendScreenDuration();
+
+    this.destroyed = true;
 
     this.appStateSubscription?.remove();
     this.appStateSubscription = null;
