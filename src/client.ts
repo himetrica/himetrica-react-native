@@ -31,6 +31,7 @@ export class HimetricaClient {
   private pendingCustomEvents: Array<() => void> = [];
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private appState: AppStateStatus = AppState.currentState;
+  private backgroundAt: number = 0;
 
   constructor(config: HimetricaConfig) {
     this.config = resolveConfig(config);
@@ -259,12 +260,39 @@ export class HimetricaClient {
       // Going to background — send duration + persist queue
       this.sendScreenDuration();
       this.transport.persistQueue();
+      this.backgroundAt = Date.now();
     }
 
     if (this.appState.match(/inactive|background/) && nextState === "active") {
-      // Coming to foreground — check session, flush queue
       if (this.storage.isReady()) {
-        this.storage.getSessionId(this.config.sessionTimeout);
+        const awayTime = this.backgroundAt > 0 ? Date.now() - this.backgroundAt : 0;
+        this.backgroundAt = 0;
+
+        if (awayTime >= this.config.sessionTimeout) {
+          // Session expired — new session will be created by getSessionId,
+          // re-track the current screen
+          this.storage.getSessionId(this.config.sessionTimeout);
+          if (this.currentScreenName) {
+            const name = this.currentScreenName;
+            const path = this.currentScreenPath;
+            this.currentScreenName = null;
+            this.currentScreenPath = null;
+            this.trackScreen(name, path ?? undefined);
+          }
+        } else if (awayTime > 5 * 60 * 1000) {
+          // Away 5+ min but session still valid — lightweight heartbeat
+          const payload = {
+            visitorId: this.storage.getVisitorId(),
+            sessionId: this.storage.getSessionId(this.config.sessionTimeout),
+          };
+          this.transport.sendOrQueue(
+            `/api/track/heartbeat?apiKey=${this.config.apiKey}`,
+            payload
+          );
+        } else {
+          // Short absence — just refresh session timestamp
+          this.storage.getSessionId(this.config.sessionTimeout);
+        }
       }
       this.transport.flush();
     }
