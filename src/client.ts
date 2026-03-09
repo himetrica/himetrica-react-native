@@ -1,4 +1,4 @@
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, Dimensions, type AppStateStatus } from "react-native";
 import { type HimetricaConfig, type ResolvedConfig, resolveConfig } from "./config";
 import { Storage } from "./storage";
 import { Transport } from "./transport";
@@ -32,6 +32,7 @@ export class HimetricaClient {
   private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
   private appState: AppStateStatus = AppState.currentState;
   private backgroundAt: number = 0;
+  private tapCount: number = 0;
 
   constructor(config: HimetricaConfig) {
     this.config = resolveConfig(config);
@@ -106,6 +107,7 @@ export class HimetricaClient {
     this.currentScreenPath = path;
     this.currentScreenViewId = screenViewId;
     this.screenStartTime = Date.now();
+    this.tapCount = 0;
     this.isFirstScreen = false;
 
     if (!this.storage.isReady()) return;
@@ -113,14 +115,17 @@ export class HimetricaClient {
     const payload = {
       visitorId: this.storage.getVisitorId(),
       sessionId: this.storage.getSessionId(this.config.sessionTimeout),
-      screenViewId,
-      screenName: name,
+      pageViewId: screenViewId,
       path,
-      timestamp: new Date().toISOString(),
+      title: name,
+      referrer: "",
+      queryString: "",
+      screenWidth: Math.round(Dimensions.get("screen").width),
+      screenHeight: Math.round(Dimensions.get("screen").height),
     };
 
     this.transport.sendOrQueue(
-      `/api/track/screen?apiKey=${this.config.apiKey}`,
+      `/api/track/event`,
       payload
     );
 
@@ -160,13 +165,15 @@ export class HimetricaClient {
     const payload = {
       visitorId: this.storage.getVisitorId(),
       sessionId: this.storage.getSessionId(this.config.sessionTimeout),
-      event: eventName,
+      eventName,
       properties: properties ?? {},
-      timestamp: new Date().toISOString(),
+      path: this.currentScreenPath || "/",
+      title: this.currentScreenName || "",
+      queryString: "",
     };
 
     this.transport.sendOrQueue(
-      `/api/track/event?apiKey=${this.config.apiKey}`,
+      `/api/track/custom-event`,
       payload
     );
 
@@ -286,7 +293,7 @@ export class HimetricaClient {
             sessionId: this.storage.getSessionId(this.config.sessionTimeout),
           };
           this.transport.sendOrQueue(
-            `/api/track/heartbeat?apiKey=${this.config.apiKey}`,
+            `/api/track/heartbeat`,
             payload
           );
         } else {
@@ -309,18 +316,27 @@ export class HimetricaClient {
 
     if (durationSec < MIN_DURATION) return;
 
-    const payload = {
-      screenViewId: this.currentScreenViewId,
+    const payload: Record<string, unknown> = {
+      pageViewId: this.currentScreenViewId,
       duration: clampedDuration,
     };
+    if (this.tapCount > 0) {
+      payload.clickCount = this.tapCount;
+    }
 
     this.transport.sendOrQueue(
-      `/api/track/screen/duration?apiKey=${this.config.apiKey}`,
+      `/api/track/beacon`,
       payload
     );
 
     this.currentScreenViewId = null;
     this.screenStartTime = 0;
+  }
+
+  /** Track a user tap/press. Call this from your UI to count interactions per screen. */
+  trackTap(): void {
+    if (this.destroyed) return;
+    this.tapCount++;
   }
 
   private log(message: string): void {
