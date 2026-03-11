@@ -181,6 +181,7 @@ export class HimetricaClient {
   }
 
   async identify(data: {
+    userId?: string;
     name?: string;
     email?: string;
     metadata?: Record<string, unknown>;
