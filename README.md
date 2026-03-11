@@ -98,8 +98,9 @@ hm.trackScreen("Home");
 // Track a custom event
 hm.track("purchase_completed", { plan: "pro" });
 
-// Identify a user
+// Identify a user (userId enables cross-device merging)
 await hm.identify({
+  userId: "user_123",
   name: "Jane Doe",
   email: "jane@example.com",
   metadata: { plan: "pro" },
@@ -235,7 +236,7 @@ const hm = new HimetricaClient({
 | `init()` | Initialize the client (called automatically by Provider) |
 | `trackScreen(name, path?)` | Track a screen view |
 | `track(eventName, properties?)` | Track a custom event |
-| `identify({ name?, email?, metadata? })` | Identify the current user |
+| `identify({ userId?, name?, email?, metadata? })` | Identify the current user (userId enables cross-device merging) |
 | `captureError(error, context?)` | Capture an error |
 | `captureMessage(message, severity?, context?)` | Capture a message |
 | `getVisitorId()` | Get the current visitor ID |
