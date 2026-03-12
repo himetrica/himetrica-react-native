@@ -1,4 +1,4 @@
-import { AppState, Dimensions, type AppStateStatus } from "react-native";
+import { AppState, Dimensions, Platform, type AppStateStatus } from "react-native";
 import { type HimetricaConfig, type ResolvedConfig, resolveConfig } from "./config";
 import { Storage } from "./storage";
 import { Transport } from "./transport";
@@ -38,7 +38,10 @@ export class HimetricaClient {
     this.config = resolveConfig(config);
     this.storage = new Storage();
     this.transport = new Transport(this.config, this.storage);
-    this.errorTracker = new ErrorTracker(this.config, this.storage, this.transport);
+    this.errorTracker = new ErrorTracker(
+      this.config, this.storage, this.transport,
+      () => this.currentScreenPath || "/"
+    );
   }
 
   async init(): Promise<void> {
@@ -48,9 +51,6 @@ export class HimetricaClient {
 
     this.transport.start();
 
-    if (this.config.autoTrackErrors) {
-      this.errorTracker.install();
-    }
 
     this.appStateSubscription = AppState.addEventListener(
       "change",
@@ -122,6 +122,8 @@ export class HimetricaClient {
       queryString: "",
       screenWidth: Math.round(Dimensions.get("screen").width),
       screenHeight: Math.round(Dimensions.get("screen").height),
+      platform: Platform.OS,
+      osVersion: String(Platform.Version),
     };
 
     this.transport.sendOrQueue(
@@ -170,6 +172,7 @@ export class HimetricaClient {
       path: this.currentScreenPath || "/",
       title: this.currentScreenName || "",
       queryString: "",
+      platform: Platform.OS,
     };
 
     this.transport.sendOrQueue(
@@ -257,7 +260,6 @@ export class HimetricaClient {
     this.appStateSubscription?.remove();
     this.appStateSubscription = null;
 
-    this.errorTracker.uninstall();
     this.transport.stop();
 
     this.log("Destroyed");

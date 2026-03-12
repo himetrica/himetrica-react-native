@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { generateId } from "./visitor";
 import type { ResolvedConfig } from "./config";
 import type { Storage, QueuedEvent } from "./storage";
@@ -7,10 +8,12 @@ export class Transport {
   private storage: Storage;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private flushing = false;
+  private userAgent: string;
 
   constructor(config: ResolvedConfig, storage: Storage) {
     this.config = config;
     this.storage = storage;
+    this.userAgent = `Himetrica-ReactNative/0.1.28 (${Platform.OS} ${Platform.Version})`;
   }
 
   start(): void {
@@ -37,6 +40,7 @@ export class Transport {
         headers: {
           "Content-Type": "application/json",
           "X-API-Key": this.config.apiKey,
+          "User-Agent": this.userAgent,
         },
         body: JSON.stringify(data),
       });

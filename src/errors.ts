@@ -17,6 +17,7 @@ interface ErrorPayload {
   message: string;
   stack?: string;
   severity: Severity;
+  path: string;
   userAgent: string;
   timestamp: string;
   context?: Record<string, unknown>;
@@ -36,7 +37,7 @@ function normalizeStack(stack?: string): string | undefined {
 }
 
 function getUserAgent(): string {
-  return `${Platform.OS}/${Platform.Version}`;
+  return `Himetrica-ReactNative/0.1.28 (${Platform.OS} ${Platform.Version})`;
 }
 
 export class ErrorTracker {
@@ -45,77 +46,22 @@ export class ErrorTracker {
   private transport: Transport;
   private errorTimestamps: number[] = [];
   private sentErrorHashes = new Set<string>();
-  private originalHandler: ((error: unknown, isFatal?: boolean) => void) | null = null;
-  private installed = false;
+  private currentPath: () => string;
 
-  constructor(config: ResolvedConfig, storage: Storage, transport: Transport) {
+  constructor(
+    config: ResolvedConfig,
+    storage: Storage,
+    transport: Transport,
+    currentPath?: () => string
+  ) {
     this.config = config;
     this.storage = storage;
     this.transport = transport;
+    this.currentPath = currentPath ?? (() => "/");
   }
 
-  install(): void {
-    if (this.installed) return;
-    this.installed = true;
-
-    // Install global error handler
-    const ErrorUtils = (global as Record<string, unknown>).ErrorUtils as
-      | {
-          getGlobalHandler: () => (error: unknown, isFatal?: boolean) => void;
-          setGlobalHandler: (handler: (error: unknown, isFatal?: boolean) => void) => void;
-        }
-      | undefined;
-
-    if (ErrorUtils) {
-      this.originalHandler = ErrorUtils.getGlobalHandler();
-      ErrorUtils.setGlobalHandler((error: unknown, isFatal?: boolean) => {
-        this.captureError(
-          error instanceof Error ? error : new Error(String(error)),
-          { isFatal },
-          "error",
-          isFatal ? "error" : "warning"
-        );
-        this.originalHandler?.(error, isFatal);
-      });
-    }
-
-    // Promise rejection tracking
-    const tracking = require("promise/setimmediate/rejection-tracking");
-    tracking.enable({
-      allRejections: true,
-      onUnhandled: (_id: number, error: unknown) => {
-        this.captureError(
-          error instanceof Error ? error : new Error(String(error)),
-          { type: "unhandledrejection" },
-          "unhandledrejection",
-          "error"
-        );
-      },
-    });
-  }
-
-  uninstall(): void {
-    if (!this.installed) return;
-
-    const ErrorUtils = (global as Record<string, unknown>).ErrorUtils as
-      | {
-          setGlobalHandler: (handler: (error: unknown, isFatal?: boolean) => void) => void;
-        }
-      | undefined;
-
-    if (ErrorUtils && this.originalHandler) {
-      ErrorUtils.setGlobalHandler(this.originalHandler);
-      this.originalHandler = null;
-    }
-
-    try {
-      const tracking = require("promise/setimmediate/rejection-tracking");
-      tracking.disable();
-    } catch {
-      // may not be available
-    }
-
-    this.installed = false;
+  setCurrentPath(pathFn: () => string): void {
+    this.currentPath = pathFn;
   }
 
   captureError(
@@ -140,6 +86,7 @@ export class ErrorTracker {
       message,
       stack,
       severity,
+      path: this.currentPath(),
       userAgent: getUserAgent(),
       timestamp: new Date().toISOString(),
       context,
