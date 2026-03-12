@@ -146,7 +146,7 @@ export class ErrorTracker {
     };
 
     this.transport.sendOrQueue(
-      `/api/track/errors?apiKey=${this.config.apiKey}`,
+      `/api/t/errors?apiKey=${this.config.apiKey}`,
       payload
     );
   }
