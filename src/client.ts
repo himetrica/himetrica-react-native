@@ -125,7 +125,7 @@ export class HimetricaClient {
     };
 
     this.transport.sendOrQueue(
-      `/api/track/event`,
+      `/api/t/event`,
       payload
     );
 
@@ -173,7 +173,7 @@ export class HimetricaClient {
     };
 
     this.transport.sendOrQueue(
-      `/api/track/custom-event`,
+      `/api/t/custom-event`,
       payload
     );
 
@@ -197,7 +197,7 @@ export class HimetricaClient {
     };
 
     try {
-      const url = `${this.config.apiUrl}/api/track/identify?apiKey=${this.config.apiKey}`;
+      const url = `${this.config.apiUrl}/api/t/identify?apiKey=${this.config.apiKey}`;
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -294,7 +294,7 @@ export class HimetricaClient {
             sessionId: this.storage.getSessionId(this.config.sessionTimeout),
           };
           this.transport.sendOrQueue(
-            `/api/track/heartbeat`,
+            `/api/t/heartbeat`,
             payload
           );
         } else {
@@ -326,7 +326,7 @@ export class HimetricaClient {
     }
 
     this.transport.sendOrQueue(
-      `/api/track/beacon`,
+      `/api/t/beacon`,
       payload
     );
 
