@@ -7,7 +7,7 @@ A lightweight, privacy-focused analytics and error tracking SDK for React Native
 - **Screen tracking** - Automatic screen view tracking with React Navigation integration
 - **Custom events** - Track user actions with custom properties
 - **User identification** - Associate analytics with user profiles
-- **Error tracking** - Capture errors, unhandled rejections, and React component crashes
+- **Error tracking** - Capture errors manually with rate limiting and deduplication, plus React ErrorBoundary
 - **Session management** - Automatic session handling with configurable timeout
 - **Offline support** - Events queued and sent when connectivity is restored
 - **Duration tracking** - Automatic time-on-screen measurement
@@ -159,7 +159,7 @@ function AdvancedUsage() {
 
 ## Error Tracking
 
-Errors are captured automatically by default (uncaught exceptions and unhandled promise rejections). You can also capture errors manually:
+Capture errors manually in your catch blocks. Errors are rate-limited (max 10/minute) and deduplicated (5-minute window).
 
 ```tsx
 import { useCaptureError } from "@himetrica/tracker-react-native/react";
@@ -197,8 +197,6 @@ import { HimetricaErrorBoundary } from "@himetrica/tracker-react-native/react";
 </HimetricaErrorBoundary>
 ```
 
-Errors are rate-limited (max 10/minute) and deduplicated (5-minute window) to avoid flooding.
-
 ## Configuration
 
 ```typescript
@@ -206,7 +204,6 @@ const hm = new HimetricaClient({
   apiKey: "your-api-key",           // Required
   apiUrl: "https://app.himetrica.com", // Custom API endpoint (self-hosting)
   autoTrackScreens: true,           // Auto-track screen views
-  autoTrackErrors: true,            // Auto-capture uncaught errors and rejections
   sessionTimeout: 30 * 60 * 1000,  // Session timeout in ms (default: 30 min)
   enableLogging: false,             // Print [Himetrica] debug logs
   maxQueueSize: 1000,              // Max offline queue size
@@ -221,7 +218,6 @@ const hm = new HimetricaClient({
 | `apiKey` | `string` | required | Your Himetrica API key |
 | `apiUrl` | `string` | `"https://app.himetrica.com"` | Custom API endpoint |
 | `autoTrackScreens` | `boolean` | `true` | Auto-track screen views |
-| `autoTrackErrors` | `boolean` | `true` | Auto-capture errors and rejections |
 | `sessionTimeout` | `number` | `1800000` (30 min) | Session timeout in ms |
 | `enableLogging` | `boolean` | `false` | Enable debug logging |
 | `maxQueueSize` | `number` | `1000` | Max queued events |
