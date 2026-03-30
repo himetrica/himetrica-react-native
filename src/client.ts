@@ -124,6 +124,8 @@ export class HimetricaClient {
       screenHeight: Math.round(Dimensions.get("screen").height),
       platform: Platform.OS,
       osVersion: String(Platform.Version),
+      ...(this.config.appVersion ? { appVersion: this.config.appVersion } : {}),
+      ...(this.config.deviceModel ? { deviceModel: this.config.deviceModel } : {}),
     };
 
     this.transport.sendOrQueue(
