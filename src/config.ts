@@ -6,6 +6,10 @@ export interface HimetricaConfig {
   enableLogging?: boolean;
   maxQueueSize?: number;
   flushInterval?: number;
+  /** App version string (e.g. "1.2.3"). Sent with every event. */
+  appVersion?: string;
+  /** Device model string (e.g. "iPhone 15 Pro"). Sent with screen view events. */
+  deviceModel?: string;
 }
 
 export interface ResolvedConfig {
@@ -16,6 +20,8 @@ export interface ResolvedConfig {
   enableLogging: boolean;
   maxQueueSize: number;
   flushInterval: number;
+  appVersion?: string;
+  deviceModel?: string;
 }
 
 export function resolveConfig(config: HimetricaConfig): ResolvedConfig {
@@ -27,5 +33,7 @@ export function resolveConfig(config: HimetricaConfig): ResolvedConfig {
     enableLogging: config.enableLogging ?? false,
     maxQueueSize: config.maxQueueSize ?? 1000,
     flushInterval: config.flushInterval ?? 30,
+    appVersion: config.appVersion,
+    deviceModel: config.deviceModel,
   };
 }
