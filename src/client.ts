@@ -242,6 +242,33 @@ export class HimetricaClient {
     return this.storage.getVisitorId();
   }
 
+  /** Reset all stored visitor/session data and start fresh. Call on logout before identifying a new user. */
+  async reset(): Promise<void> {
+    if (this.destroyed) return;
+
+    this.sendScreenDuration();
+
+    // Cancel any pending screen so it doesn't fire with the old visitorId
+    if (this.screenDebounceTimer) {
+      clearTimeout(this.screenDebounceTimer);
+      this.screenDebounceTimer = null;
+      this.pendingScreen = null;
+    }
+
+    await this.storage.reset();
+
+    this.currentScreenName = null;
+    this.currentScreenPath = null;
+    this.currentScreenViewId = null;
+    this.screenStartTime = 0;
+    this.isFirstScreen = true;
+    this.firstScreenViewSent = false;
+    this.pendingCustomEvents = [];
+    this.tapCount = 0;
+
+    this.log("All data reset");
+  }
+
   async flush(): Promise<void> {
     this.flushPendingScreen();
     this.sendScreenDuration();
