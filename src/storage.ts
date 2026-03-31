@@ -125,4 +125,24 @@ export class Storage {
       await this.saveQueue(queue.slice(queue.length - maxSize));
     }
   }
+
+  /** Clear all stored visitor/session data and generate fresh IDs. */
+  async reset(): Promise<void> {
+    await AsyncStorage.multiRemove([
+      KEY_VISITOR_ID,
+      KEY_SESSION_ID,
+      KEY_SESSION_TIMESTAMP,
+      KEY_OFFLINE_QUEUE,
+    ]);
+
+    this.visitorId = generateId();
+    this.sessionId = generateId();
+    this.sessionTimestamp = Date.now();
+
+    await AsyncStorage.multiSet([
+      [KEY_VISITOR_ID, this.visitorId],
+      [KEY_SESSION_ID, this.sessionId],
+      [KEY_SESSION_TIMESTAMP, String(this.sessionTimestamp)],
+    ]);
+  }
 }
